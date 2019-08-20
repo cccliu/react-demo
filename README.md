@@ -1,68 +1,183 @@
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+a.为管理好路由，利用react-router-config来管理路由：
+    在index.js(入口文件，先引用，再调用renderRoutes )：
+        import { renderRoutes } from 'react-router-config';
+        ReactDOM.render( 
+	( 
+	  <div>
+	     <BrowserRouter>
+	        {renderRoutes(router【路由json数据】)}
+	     </BrowserRouter>
+	  </div>
+         ),document.getElementById('root'));
 
-## Available Scripts
+b.定义好conifg环境，环境判断，切换域名：
+const hostname = window.location.hostname;
+const HOST = {
+   PRO: 'https://wxapi.csair.com/',
+   TEST: 'https://twx.csair.com/',
+   DEV: 'http://198.162.1.80:8181/'
+}
+let ENV = "DEV";
 
-In the project directory, you can run:
+if (hostname.indexof(HOST.PRO) > -1) {
+   ENV = "PRO";
+} else if(hostname.indexof(HOST.TEST) > -1) {
+   ENV = "TEST";
+} else {
+   ENV = "DEV"
+}
 
-### `npm start`
+export default {
+   HOST,
+   ENV
+}
 
-Runs the app in the development mode.<br>
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+c.引入redux文件库，未了实现复杂的子子或子夫等等进行通信。
 
-The page will reload if you make edits.<br>
-You will also see any lint errors in the console.
+import {createStore} from 'redux';
+import {Provider} from 'react-redux';
 
-### `npm test`
+import rootReducer from './store/reducers';（这里要定义好reducers,) :
+----------------------------------
+import {combineReducers} from 'redux';
+import defineTypes from './actions'; (这里也要定义好行为方式) :
+---------
+export default {
+	CHANGE_USERNAME: 'CHANGE_USERNAME',
+	CHARACTERISTIC: 'CHARACTERISTIC',
+	SHISGIN: 'SHISGIN'
+}
+----------
+import initstate from './state';(定义好store的初始化的值)：
+》》》》
+     export default {
+          count: 8,
+          number: 110
+     }
+》》》》
+const datas = initstate;
+const a = (state ={count: datas['count']}, action) => {
+   switch(action.type) {
+    case defineTypes.CHANGE_USERNAME:
+      return {
+        ...state,
+        count: ++state.count
+      }
+    default:
+      return state
+   }
+}
 
-Launches the test runner in the interactive watch mode.<br>
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+const b = (state = {number: datas['number']}, action) => {
+   switch(action.type) {
+   	case defineTypes.SHISGIN:
+   	  return {
+        ...state,
+         number: --state.number
+      }
+   	default:
+   	  return state;
+   }
+}
 
-### `npm run build`
+const rootReducer = combineReducers({
+  a,
+  b
+})
+export default rootReducer;
+----------------------------------
 
-Builds the app for production to the `build` folder.<br>
-It correctly bundles React in production mode and optimizes the build for the best performance.
 
-The build is minified and the filenames include the hashes.<br>
-Your app is ready to be deployed!
+const store = createStore(rootReducer);
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+ReactDOM.render(
+	<Provider store={store}>  
+	   <BrowserRouter>
+	       {renderRoutes(router)}
+	   </BrowserRouter>
+	</Provider>
+	,document.getElementById('root')
+);
 
-### `npm run eject`
 
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
+D.重要的要是，要将这些参数都映射到项目中去：connect与 mapStateToProps关联该组件：
+import {connect} from 'react-redux';
+class IndexCompontent extends Component { } （组件名叫IndexCompontent ）
 
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+const mapStateToProps = (states, ownProps) => {
+  const o = {};
+    if (states) {
+        for (let index in states) {
+            for (let key in states[index]) {
+              o[key] = states[index][key]
+            }
+        }
+        return {
+          store: o
+        }
+    }
+};
 
-Instead, it will copy all the configuration files and the transitive dependencies (Webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
+connect(mapStateToProps, null)(IndexCompontent);
 
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
+E.封装axio请求
 
-## Learn More
+import axios from 'axios'
+import {HOST, ENV} from './config'
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+// 创建axios实例
+const BaseUrl = HOST[ENV];
+// const token = store.state.token
+const token = window.localstorage.getItem('token') || 'as5df6asd5f6asdf5asd6f523232212k562000112';
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+const instance = axios.create({
+  baseURL: BaseUrl, // config的BaseUrl
+  timeout: 10 * 1000 // 请求超时时间
+})
 
-### Code Splitting
+// request拦截器
+instance.interceptors.request.use((config) => {
+  if (token) {
+    config.headers['token'] = token
+    config.headers['Authorization'] = 'Bearer' + ' ' + token // 让每个请求携带token -- ['Authorization']为自定义key;
+  }
+  return config
+}, error => {
+  Promise.reject(error)
+})
 
-This section has moved here: https://facebook.github.io/create-react-app/docs/code-splitting
+// 响应拦截
+instance.interceptors.response.use((response) => {
+  const res = response.data
+  if (res && (res.status !== 'success')) {
+    return Promise.reject(res.error)
+  }
+  return response
+}, error => {
+  Promise.reject(error)
+})
 
-### Analyzing the Bundle Size
+// 定义请求
+const request = async (url = '', type = 'get', data = {}, isQ = true) => {
+  let result = null
+  if (type.toLowerCase === 'get') {
+    await instance.get(url, { params: data }).then((res) => {
+      result = res
+    })
+  }
+  if (type.toLowerCase() === 'post' || type.toLowerCase() === 'put') {
+    if (isQ) {
+      await instance.post(url, qs.stringify(data)).then(res => {
+        result = res
+      })
+    } else {
+      await instance.post(url).then(res => {
+        result = res
+      })
+    }
+  }
+  return result
+}
 
-This section has moved here: https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size
+export default request
 
-### Making a Progressive Web App
-
-This section has moved here: https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app
-
-### Advanced Configuration
-
-This section has moved here: https://facebook.github.io/create-react-app/docs/advanced-configuration
-
-### Deployment
-
-This section has moved here: https://facebook.github.io/create-react-app/docs/deployment
-
-### `npm run build` fails to minify
-
-This section has moved here: https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify
